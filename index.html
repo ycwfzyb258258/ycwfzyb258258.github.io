@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>课堂随机点名器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .box {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    padding: 30px;
+    width: 100%;
+    max-width: 520px;
+    text-align: center;
+  }
+  h1 { font-size: 26px; color: #333; margin-bottom: 6px; }
+  .sub { color: #999; font-size: 14px; margin-bottom: 20px; }
+  #name {
+    font-size: 60px;
+    font-weight: bold;
+    color: #667eea;
+    height: 90px;
+    line-height: 90px;
+    margin: 10px 0 20px;
+  }
+  #name.rolling { animation: shake .1s infinite; color: #aaa; }
+  @keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+    100% { transform: translateX(0); }
+  }
+  button {
+    border: none;
+    border-radius: 10px;
+    padding: 14px 28px;
+    font-size: 17px;
+    cursor: pointer;
+    margin: 5px;
+    transition: transform .15s, opacity .15s;
+  }
+  button:active { transform: scale(.95); }
+  .main { background: #667eea; color: #fff; width: 100%; }
+  .main:hover { opacity: .9; }
+  .ghost { background: #f0f0f5; color: #666; font-size: 14px; padding: 10px 18px; }
+  textarea {
+    width: 100%;
+    height: 120px;
+    margin-top: 15px;
+    padding: 12px;
+    border: 2px solid #eee;
+    border-radius: 10px;
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+  }
+  textarea:focus { outline: none; border-color: #667eea; }
+  .label { text-align: left; color: #666; font-size: 14px; margin-top: 15px; }
+  #count { color: #999; font-size: 13px; margin-top: 8px; }
+  .history {
+    margin-top: 15px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+  .history span {
+    background: #f0f0f5;
+    color: #666;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>课堂随机点名器</h1>
+  <div class="sub">点击下方按钮开始抽取</div>
+
+  <div id="name">准备就绪</div>
+
+  <button class="main" id="btn" onclick="start()">开始点名</button>
+  <button class="ghost" onclick="reset()">重置</button>
+
+  <div id="count"></div>
+  <div class="history" id="history"></div>
+
+  <div class="label">学生名单（每行一个名字）</div>
+  <textarea id="list" placeholder="张三&#10;李四&#10;王五"></textarea>
+</div>
+
+<script>
+  let pool = [];      // 本轮待抽的名单
+  let drawn = [];     // 已抽过的
+  let timer = null;
+
+  const nameEl = document.getElementById('name');
+  const btn = document.getElementById('btn');
+  const listEl = document.getElementById('list');
+  const countEl = document.getElementById('count');
+  const historyEl = document.getElementById('history');
+
+  // 读取名单
+  function readList() {
+    return listEl.value.split('\n').map(s => s.trim()).filter(s => s);
+  }
+
+  function updateCount() {
+    const total = pool.length + drawn.length;
+    countEl.textContent = total ? `剩余 ${pool.length} 人 / 共 ${total} 人` : '';
+  }
+
+  function start() {
+    if (timer) return;
+
+    // 第一次点或已抽完，重新载入名单
+    if (pool.length === 0) {
+      pool = readList();
+      drawn = [];
+      historyEl.innerHTML = '';
+      if (pool.length === 0) {
+        nameEl.textContent = '请先输入名单';
+        setTimeout(() => nameEl.textContent = '准备就绪', 1500);
+        return;
+      }
+    }
+
+    btn.disabled = true;
+    nameEl.classList.add('rolling');
+
+    let ticks = 0;
+    timer = setInterval(() => {
+      const all = pool.concat(drawn);
+      nameEl.textContent = all[Math.floor(Math.random() * all.length)];
+      if (++ticks > 20) {
+        clearInterval(timer);
+        timer = null;
+        pick();
+      }
+    }, 60);
+  }
+
+  function pick() {
+    const i = Math.floor(Math.random() * pool.length);
+    const name = pool.splice(i, 1)[0];
+    drawn.unshift(name);
+
+    nameEl.classList.remove('rolling');
+    nameEl.textContent = name;
+
+    const tag = document.createElement('span');
+    tag.textContent = name;
+    historyEl.prepend(tag);
+
+    updateCount();
+    btn.disabled = false;
+    btn.textContent = pool.length ? '再抽一人' : '已抽完，重新开始';
+  }
+
+  function reset() {
+    clearInterval(timer);
+    timer = null;
+    pool = [];
+    drawn = [];
+    nameEl.classList.remove('rolling');
+    nameEl.textContent = '准备就绪';
+    btn.textContent = '开始点名';
+    historyEl.innerHTML = '';
+    updateCount();
+  }
+
+  // 名单变化时提示
+  listEl.addEventListener('input', () => {
+    if (!timer) { pool = []; updateCount(); }
+  });
+
+  // 空格键也能抽
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target !== listEl) {
+      e.preventDefault();
+      start();
+    }
+  });
+</script>
+</body>
+</html>
